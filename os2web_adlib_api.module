@@ -233,7 +233,7 @@ function os2web_adlib_api_status() {
       );
     }
   }
-  drupal_add_js(drupal_get_path('module', 'os2web_adlib_api') . '/os2web_adlib_api.js', 'file');
+  drupal_add_js(drupal_get_path('module', 'os2web_adlib_api') . '/js/os2web_adlib_api.js', 'file');
   $html = '<h2>Connector information</h2>';
   $html .= theme('table', array('header' => $head, 'rows' => $rows));
   $head = array('Fid', 'Job-id', 'Status', 'action');
