@@ -1,7 +1,7 @@
 name = OS2Web AdLib API Module
 description = Implements calls to allow access to the AdLib webservice
 
-package = OS2Web - Kerne
+package = OS2Web - Backend
 core = 7.x
 
 ; Additional infomation

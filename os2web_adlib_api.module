@@ -1,5 +1,4 @@
 <?php
-
 /**
  * @file
  * Implements API to convert files to PDF or HTML through AdLib.
