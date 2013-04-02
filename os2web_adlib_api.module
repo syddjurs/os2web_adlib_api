@@ -211,7 +211,7 @@ function os2web_adlib_api_status() {
         ->condition(db_or()->condition('job_id', 'Complete', '!=')->isNull('job_id'))
         ->execute()
         ->fetchAll();
-    $chunk_size = max(min((int) sqrt(count($items)), 25), 1);
+    $chunk_size = max(min((int) sqrt(count($items)), 5), 1);
     $items = array_chunk($items, $chunk_size);
     foreach ($items as $item) {
       $batch['operations'][] = array('_os2web_adlib_api_process_fid', array($item));
@@ -298,15 +298,15 @@ function os2web_adlib_api_cron() {
   _os2web_adlib_api_do_processing();
 
   // Add set up queue for adlib requeueing.
-  $queue = DrupalQueue::get('os2web_adlib_reprocess');
-  if ($queue->numberOfItems() == 0) {
-    $items = _os2web_adlib_api_bulletpoint_nid();
-    $chunk_size = max(min((int) sqrt(count($items)), 25), 1);
-    $items = array_chunk($items, $chunk_size);
-    foreach ($items as $item) {
-      $queue->createItem($item);
-    }
-  }
+  // $queue = DrupalQueue::get('os2web_adlib_reprocess');
+  // if ($queue->numberOfItems() == 0) {
+  //   $items = _os2web_adlib_api_bulletpoint_nid();
+  //   $chunk_size = max(min((int) sqrt(count($items)), 25), 1);
+  //   $items = array_chunk($items, $chunk_size);
+  //   foreach ($items as $item) {
+  //     $queue->createItem($item);
+  //   }
+  // }
 }
 
 /**
@@ -450,7 +450,7 @@ function _os2web_adlib_api_do_processing() {
         ->condition(db_or()->condition('job_id', 'Complete', '!=')->isNull('job_id'))
         ->execute()
         ->fetchAll();
-    $chunk_size = max(min((int) sqrt(count($items)), 25), 1);
+    $chunk_size = max(min((int) sqrt(count($items)), 5), 1);
     $items = array_chunk($items, $chunk_size);
     foreach ($items as $item) {
       if ($item->job_id != 'Complete') {
