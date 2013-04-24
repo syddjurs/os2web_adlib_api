@@ -819,3 +819,18 @@ function os2web_adlib_api_destroy_job($job_id) {
     watchdog('adlib_api', 'Deleted job for %fid', array('%fid' => $job_id));
   }
 }
+
+/**
+ * Implements hook_os2web_help().
+ */
+function os2web_adlib_api_os2web_help($sections) {
+
+  // List of content.
+  $sections['list_of_content'] = t('<a href="#os2web_adlib_api">Adlib file conversion</a><br />');
+
+  // Module specific.
+  $sections['os2web_adlib_api'] = t('<h2 id="os2web_adlib_api">Adlib file conversion:</h2>');
+  $sections['os2web_adlib_api'] .= t('<p><b>Description:</b> Adlib is a file conversion unit on your network. This module is often used to convert misc files to either .html or .pdf files. See the status of the current queue of files at the <a href="@status" target="_blank">adlib status page</a>. You can requeue files for conversion at the <a href="@requeue" target="_blank">requeue page</a>.</p>', array('@status' => url('admin/config/os2web/adlibstatus'), '@requeue' => url('admin/config/os2web/reprocess')));
+
+  return $sections;
+}
