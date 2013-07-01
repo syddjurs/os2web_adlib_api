@@ -420,7 +420,11 @@ function os2web_adlib_api_convert_to_pdf($fid, $docref = NULL) {
  *   File id
  */
 function os2web_adlib_api_get_fid($ref) {
-  return (int) db_query('SELECT fid FROM {os2web_adlib_api_doc_files} WHERE did=:did', array(':did' => $ref))->fetchField();
+  $fid = db_query('SELECT fid FROM {os2web_adlib_api_doc_files} WHERE did=:did ORDER BY fid DESC', array(':did' => $ref))->fetchField();
+  if ($fid) {
+    return $fid;
+  }
+  return false;
 }
 
 /**
