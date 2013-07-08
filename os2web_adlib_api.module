@@ -1,4 +1,5 @@
 <?php
+
 /**
  * @file
  * Implements API to convert files to PDF or HTML through AdLib.
@@ -41,6 +42,24 @@ function os2web_adlib_api_menu() {
     'type' => MENU_CALLBACK,
   );
   return $items;
+}
+
+/**
+ * Implements hook_FORM_alter().
+ */
+function os2web_adlib_api_form_os2web_settings_settings_form_alter(&$form, &$form_state) {
+  // Adlib API configuration.
+
+  $form['os2web_adlib_api_config_group'] = array(
+    '#type' => 'fieldset',
+    '#title' => t('AdLib Configuration'),
+  );
+  $form['os2web_adlib_api_config_group']['os2web_adlib_api_allowed_ip_host'] = array(
+    '#type' => 'textfield',
+    '#title' => 'IP addresser der kan udløse AdLib konvertering',
+    '#description' => 'Komma separeret liste af ip-addresser/servernavne der kan anvende AdLib. Husk AdLib kan køres fra admin og fra cron.',
+    '#default_value' => variable_get('os2web_adlib_api_allowed_ip_host', ip_address()),
+  );
 }
 
 /**
@@ -167,7 +186,7 @@ function _os2web_adlib_api_reprocess_nid($nid, &$context = array()) {
 
   if (isset($node->field_enclosures['und'])) {
     foreach ($node->field_enclosures['und'] as $file) {
-      if (file_exists(drupal_realpath($file['uri'])) && !_os2web_adlib_api_is_file_pdf($file['fid'])) {
+      if (file_exists(drupal_realpath($file['uri'])) && _os2web_adlib_api_is_filetype_approved($file['fid'])) {
         if (os2web_adlib_api_convert_to_pdf($file['fid'])) {
           watchdog('adlib_api', 'readded fid to conversion queue:' . $file['fid'], NULL, WATCHDOG_DEBUG);
         }
@@ -189,10 +208,22 @@ function os2web_adlib_api_status() {
     drupal_goto('admin/config/os2web/adlibstatus');
   }
   if (isset($_GET['reset'])) {
+    $file = db_select('os2web_adlib_api_doc_files', 'df')
+      ->fields('df')
+      ->condition('fid', $_GET['reset'])
+      ->execute()
+      ->fetchObject();
+
     $query = db_delete('os2web_adlib_api_doc_files');
     $query = $query->condition('fid', $_GET['reset']);
     $query->execute();
-    os2web_adlib_api_convert_to_pdf($_GET['reset']);
+
+    if (is_object($file) && !empty($file->did)) {
+      os2web_adlib_api_convert_to_pdf($_GET['reset'], $file->did);
+    }
+    else {
+      os2web_adlib_api_convert_to_pdf($_GET['reset']);
+    }
     drupal_goto('admin/config/os2web/adlibstatus');
   }
   if (isset($_GET['process'])) {
@@ -232,7 +263,7 @@ function os2web_adlib_api_status() {
       );
     }
   }
-  drupal_add_js(drupal_get_path('module', 'os2web_adlib_api') . '/js/os2web_adlib_api.js', 'file');
+  drupal_add_js(drupal_get_path('module', 'os2web_adlib_api') . '/os2web_adlib_api.js', 'file');
   $html = '<h2>Connector information</h2>';
   $html .= theme('table', array('header' => $head, 'rows' => $rows));
   $head = array('Fid', 'Job-id', 'Status', 'action');
@@ -298,15 +329,15 @@ function os2web_adlib_api_cron() {
   _os2web_adlib_api_do_processing();
 
   // Add set up queue for adlib requeueing.
-  // $queue = DrupalQueue::get('os2web_adlib_reprocess');
-  // if ($queue->numberOfItems() == 0) {
-  //   $items = _os2web_adlib_api_bulletpoint_nid();
-  //   $chunk_size = max(min((int) sqrt(count($items)), 25), 1);
-  //   $items = array_chunk($items, $chunk_size);
-  //   foreach ($items as $item) {
-  //     $queue->createItem($item);
-  //   }
-  // }
+  $queue = DrupalQueue::get('os2web_adlib_reprocess');
+  if ($queue->numberOfItems() == 0) {
+    $items = _os2web_adlib_api_bulletpoint_nid();
+    $chunk_size = max(min((int) sqrt(count($items)), 25), 1);
+    $items = array_chunk($items, $chunk_size);
+    foreach ($items as $item) {
+      $queue->createItem($item);
+    }
+  }
 }
 
 /**
@@ -380,7 +411,7 @@ function os2web_adlib_api_convert_to_pdf($fid, $docref = NULL) {
     // file_delete($file);
     return FALSE;
   }
-  if (!_os2web_adlib_api_is_file_pdf($fid)) {
+  if (_os2web_adlib_api_is_filetype_approved($fid)) {
     if (0 === db_query('SELECT fid from {os2web_adlib_api_doc_files} where fid = :fid AND jobtype = :jobtype', array(':fid' => $fid, ':jobtype' => 0))->rowCount()) {
       $record = array(
         'fid' => $fid,
@@ -417,9 +448,10 @@ function os2web_adlib_api_convert_to_pdf($fid, $docref = NULL) {
  *   Reference for the file
  *
  * @return int
- *   File id
+ *   File id, false if none.
  */
 function os2web_adlib_api_get_fid($ref) {
+
   $fid = db_query('SELECT fid FROM {os2web_adlib_api_doc_files} WHERE did=:did ORDER BY fid DESC', array(':did' => $ref))->fetchField();
   if ($fid) {
     return $fid;
@@ -447,6 +479,8 @@ function _os2web_adlib_api_get_instance() {
  */
 function _os2web_adlib_api_do_processing() {
   // Add set up queue for adlib processing.
+  //
+  // Disable auto queue of missing files
   $queue = DrupalQueue::get('os2web_adlib_process');
   if ($queue->numberOfItems() == 0) {
     $items = db_select('os2web_adlib_api_doc_files', 'f')
@@ -454,7 +488,7 @@ function _os2web_adlib_api_do_processing() {
         ->condition(db_or()->condition('job_id', 'Complete', '!=')->isNull('job_id'))
         ->execute()
         ->fetchAll();
-    $chunk_size = max(min((int) sqrt(count($items)), 5), 1);
+    $chunk_size = max(min((int) sqrt(count($items)), 25), 1);
     $items = array_chunk($items, $chunk_size);
     foreach ($items as $item) {
       if ($item->job_id != 'Complete') {
@@ -516,6 +550,7 @@ function _os2web_adlib_api_process_file($file) {
       $fdata = file_load($file->fid);
       if (!file_exists(drupal_realpath($fdata->uri)) || file_uri_scheme($fdata->uri) == '' || $fdata->filemime == 'application/pdf') {
         if ($fdata->filemime == 'application/pdf') {
+
           $record = array(
             'fid' => $fdata->fid,
             'jobtype' => $fdata->jobtype,
@@ -702,7 +737,7 @@ function _os2web_adlib_api_process_html($data, $base_url) {
 function _os2web_adlib_api_queue_file($file) {
   $file->file = file_load($file->fid);
 
-  if (is_file(drupal_realpath($file->file->uri)) && !_os2web_adlib_api_is_file_pdf($file->file->fid)) {
+  if (is_file(drupal_realpath($file->file->uri)) && _os2web_adlib_api_is_filetype_approved($file->file->fid)) {
     $adlib = _os2web_adlib_api_get_instance();
     $upload = $adlib->uploadData($file->file->filename, file_get_contents(drupal_realpath($file->file->uri)));
     if ($upload) {
@@ -734,7 +769,7 @@ function _os2web_adlib_api_queue_file($file) {
     }
   }
   else {
-    if (_os2web_adlib_api_is_file_pdf($file->file->fid)) {
+    if (!_os2web_adlib_api_is_filetype_approved($file->file->fid)) {
       $jobinfo = array(
         'fid' => $file->fid,
         'jobtype' => $file->jobtype,
@@ -753,27 +788,60 @@ function _os2web_adlib_api_queue_file($file) {
 }
 
 /**
- * Helper function, check if file is already PDF.
+ * Helper function, check if file type is correct.
  * @access protected
  *
  * @param int $fid
  *   File id
  *
- * @return boolean
- *   True if file is pdf.
+ * @return bool
+ *   True if file is approved for processing.
  */
-function _os2web_adlib_api_is_file_pdf($fid) {
+function _os2web_adlib_api_is_filetype_approved($fid) {
+
+  // Filetypes which are approved for processing.
+  $approved_files = array(
+    'docx',
+    'docm',
+    'doc',
+    'dotx',
+    'dotm',
+    'xps',
+    'rtf',
+    'xlsx',
+    'odt',
+    'xlsm',
+    'xlsb',
+    'xls',
+    'xltx',
+    'xltm',
+    'xlt',
+    'xps',
+    'ods',
+    'wps',
+    'pptx',
+    'pptm',
+    'ppt',
+    'potx',
+    'potm',
+    'ppsx',
+    'ppsm',
+    'pps',
+    'odp',
+    'msg',
+  );
+
   if (is_array($fid)) {
     $result = array();
     $files = file_load_multiple($fid);
     foreach ($files as $file) {
-      $result[$file->fid]['is_pdf'] = strcasecmp(pathinfo($file->filename, PATHINFO_EXTENSION), 'pdf') === 0;
+      $result[$file->fid]['is_pdf'] = in_array(strtolower(pathinfo(file_load($fid)->filename, PATHINFO_EXTENSION)), $approved_files);
       $result[$file->fid]['file'] = $file;
     }
     return $result;
   }
   else {
-    return strcasecmp(pathinfo(file_load($fid)->filename, PATHINFO_EXTENSION), 'pdf') === 0;
+    return in_array(strtolower(pathinfo(file_load($fid)->filename, PATHINFO_EXTENSION)), $approved_files);
   }
 }
 
