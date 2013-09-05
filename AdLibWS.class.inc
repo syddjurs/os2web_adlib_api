@@ -7,8 +7,8 @@
 
 define('ADLIB_JOBTYPE_PDF', 0);
 define('ADLIB_JOBTYPE_HTML', 1);
-define('ADLIB_DISABLED', $_SERVER['SERVER_ADDR'] != '10.255.1.46');
-//define('ADLIB_DISABLED', TRUE);
+define('ADLIB_DISABLED', !variable_get('os2web_adlib_api_is_allowed', 0));
+
 
 /**
  * Description of AdLibWS
@@ -108,7 +108,7 @@ class AdLibWS {
     <JOB:SETTINGS>
       <JOB:HEADER ENABLED="Yes" TEXTRIGHT="&amp;[Page] of &amp;[Pages]" LAYER="Foreground" />
       <JOB:NATIVEAPPSETTINGS>
-        <JOB:MSOUTLOOK CONVERSIONMODE="IFTS" />
+        <JOB:MSOUTLOOK CONVERSIONMODE="IFTS" PROCESSATTACHMENTS="No"/>
       </JOB:NATIVEAPPSETTINGS>
     </JOB:SETTINGS>
   </JOB>
@@ -120,7 +120,7 @@ class AdLibWS {
       '!outfolder' => self::$basePath . $file_info['out_folder'],
       '!jobtype' => ($type == ADLIB_JOBTYPE_HTML ? 'HTML' : 'PDF'),
         ));
-    $result = simplexml_load_string($this->client->addJob(array('job_info' => $job_info, 'job_ticket' => $job_ticket))->AddJobResult);
+    $result = simplexml_load_string($this->client->addJob(array('jobInfo' => $job_info, 'jobTicket' => $job_ticket))->AddJobResult);
     if (is_object($result) && isset($result->JobSettings['JobID'])) {
       return $result;
     }
