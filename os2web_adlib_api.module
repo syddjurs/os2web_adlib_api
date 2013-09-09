@@ -417,7 +417,7 @@ function os2web_adlib_api_convert_to_pdf($fid, $docref = NULL) {
         'did' => $docref,
         'jobtype' => 0,
       );
-      drupal_write_record('os2web_adlib_api_doc_files', $record);
+      drupal_write_record('os2web_adlib_api_doc_files', $record, array('fid', 'jobtype'));
       if (ADLIB_TEST_FID) {
         error_log(basename(__FILE__) . ':' . __LINE__ . " jm@bellcom.dk: File queued for processing.");
       }
@@ -435,7 +435,7 @@ function os2web_adlib_api_convert_to_pdf($fid, $docref = NULL) {
       'did' => $docref,
       'job_id' => 'Complete',
     );
-    drupal_write_record('os2web_adlib_api_doc_files', $record);
+    drupal_write_record('os2web_adlib_api_doc_files', $record, array('fid', 'jobtype'));
     return FALSE;
   }
 }
