@@ -320,6 +320,13 @@ function os2web_adlib_api_page() {
   return theme('table', array('rows' => $rows));
 }
 
+function os2web_adlib_api_cronapi($op, $job = NULL) {
+  switch ($op) {
+    case 'list':
+      return array('os2web_adlib_api_cron' => t('Converts files to PDF or HTML through AdLib'));
+  }
+}
+
 /**
  * Implements hook_cron().
  */
